@@ -6,6 +6,7 @@ from argparse import ArgumentParser
 from src.code_optim.utils import call_gpt
 from src.code_optim.prompts import PROMPT_CRITIQUE, PROMPT_FIX
 
+MAX_EXAMPLE = 100
 ROUNDS = 5
 FILE_PATH = "/data/juny116/CoE/code_optim/python_splits/test.jsonl"
 
@@ -20,7 +21,7 @@ def main():
         examples = [json.loads(line) for line in f.readlines()]
 
     with open(args.output, "w") as f:
-        for example in tqdm(examples[:3]):
+        for example in tqdm(examples[:MAX_EXAMPLE]):
             rounds = []
             code = example["input"]
             code = code.replace("\n\n", "\n")
