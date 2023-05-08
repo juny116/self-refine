@@ -43,7 +43,7 @@ def iterative_response(context: str, max_attempts: int) -> str:
     
     # generation of the first response
     task_init = ResponseGenTaskInit(engine=ENGINE, prompt_examples="data/prompt/responsegen/init.jsonl")
-    
+
     # getting feedback
     task_feedback = ResponseGenFeedback(engine=ENGINE, prompt_examples="data/prompt/responsegen/feedback.jsonl")
 
@@ -63,21 +63,21 @@ def iterative_response(context: str, max_attempts: int) -> str:
     while n_attempts < max_attempts:
 
         if n_attempts == 0:
-            metaoutput, response = task_init(context=context)
+            total_tokens, response = task_init(context=context)
         else:
-            metaoutput, response = task_iterate(responses_to_scores=responses_to_scores, reduce_window=reduce_window)
+            total_tokens, response = task_iterate(responses_to_scores=responses_to_scores, reduce_window=reduce_window)
             # exit(0)
             #context = new_context
 
-        print(f"\n{n_attempts} CONTEXT> {context} \n\n RESPONSE> {response} - NTOKENS> {metaoutput['usage']['total_tokens']}")
+        print(f"\n{n_attempts} CONTEXT> {context} \n\n RESPONSE> {response} - NTOKENS> {total_tokens}")
         
-        if metaoutput['usage']['total_tokens'] >3000:
+        if total_tokens >3000:
             reduce_window +=1
-            if metaoutput['usage']['total_tokens'] >3500:
+            if total_tokens >3500:
                 reduce_window +=1
 
-        feedbackmetaoutput, scores = task_feedback(context=context, response=response)
-        print(f"\n{n_attempts} SCORES> {scores} - NTOKENS> {feedbackmetaoutput['usage']['total_tokens']}")
+        feedback_tokens, scores = task_feedback(context=context, response=response)
+        print(f"\n{n_attempts} SCORES> {scores} - NTOKENS> {feedback_tokens}")
 
         total_score = re.search(r"Total score: (\d+)/(\d+)", scores).group(0)
         total_score = int(total_score.split(":")[1].strip().split("/")[0])
@@ -89,11 +89,10 @@ def iterative_response(context: str, max_attempts: int) -> str:
             "context": context,
         }
         # rtokens, ftokens = metaoutput['usage']['total_tokens'], feedbackmetaoutput['usage']['total_tokens']
-        if total_score >= 0:  # only iterate over things that are improving
+        if total_score >= best_score_so_far:  # only iterate over things that are improving
             best_score_so_far = total_score
             
             responses_to_scores[response] = (context, scores)
-            
             
         else:
             print(f"Score of {response} is {total_score}, which is less than the current best of {best_score_so_far}")
@@ -112,7 +111,7 @@ def run_dataset(max_attempts: int, outfile: str, max_size: int = 1):
     outwriter = open(outfile, 'a')
 
     for i, example in enumerate(data[:]):
-        if max_size!=0 and count>max_size: break
+        if max_size!=0 and count>=max_size: break
         print(f"\n\n\n****Instance: {i}****\n\n")
         if 'response' not in example: continue
         try:

@@ -1,8 +1,9 @@
-import sys
 from typing import Dict, List
-from src.utils import Prompt
 
-from prompt_lib.backends import openai_api
+from src.utils import Prompt
+from langchain.llms import OpenAI
+
+# from prompt_lib.backends import openai_api
 
 
 class ResponseGenTaskIterate(Prompt):
@@ -135,18 +136,26 @@ Conversation history:
         self.count += 1
         with open(f"responses_iterate_{self.count}.txt", "w") as f:
             f.write(transfer_query + "\n")
-        output = openai_api.OpenaiAPIWrapper.call(
-            prompt=transfer_query,
-            engine=self.engine,
-            max_tokens=200,
-            stop_token=self.inter_example_sep,
-            temperature=0.7,
-        )
-        modelresponse = openai_api.OpenaiAPIWrapper.get_first_response(output)
+
+        ### Original promptlib version ###
+        # output = openai_api.OpenaiAPIWrapper.call(
+        #     prompt=transfer_query,
+        #     engine=self.engine,
+        #     max_tokens=200,
+        #     stop_token=self.inter_example_sep,
+        #     temperature=0.7,
+        # )
+        # modelresponse = openai_api.OpenaiAPIWrapper.get_first_response(output)
+
+        ### Langchain version ###
+        llm = OpenAI(model_name=self.engine, n=1, best_of=1, max_tokens=800, temperature=0.7, model_kwargs={"stop": "###"})
+        # generated_response = llm(generation_query)
+        llm_result = llm.generate([transfer_query])
+        total_tokens = llm_result.llm_output['token_usage']['total_tokens']
+        modelresponse = llm_result.generations[0][0].text
         response = modelresponse.split("Response:")[1].strip().split("\n")[0].strip()
 
-        
-        return output, response.strip()
+        return total_tokens, response.strip()
 
     def make_input(
         self,
@@ -168,5 +177,5 @@ Conversation history:
     
 
 if __name__ == "__main__":
-    obj = ResponseGenTaskIterate(prompt_examples="data/prompt/acronym/feedback.v2.jsonl", engine="whatever")
+    obj = ResponseGenTaskIterate(prompt_examples="data/prompt/responsegen/feedback.jsonl", engine="whatever")
     print(obj.prompt)

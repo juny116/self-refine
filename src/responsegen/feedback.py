@@ -1,5 +1,8 @@
 import pandas as pd
-from prompt_lib.backends import openai_api
+# from prompt_lib.backends import openai_api
+from langchain.chat_models import ChatOpenAI
+from langchain.llms import OpenAI
+from langchain import PromptTemplate, LLMChain
 
 from src.utils import Prompt
 
@@ -68,19 +71,28 @@ Here are some examples of this scoring rubric:
     def __call__(self, context: str, response: str):
         prompt = self.get_prompt_with_question(context=context, response=response)
 
-        output = openai_api.OpenaiAPIWrapper.call(
-            prompt=prompt,
-            engine=self.engine,
-            max_tokens=self.max_tokens,
-            stop_token="###",
-            temperature=0.7,
-        )
-        
-        generated_feedback = openai_api.OpenaiAPIWrapper.get_first_response(output)
+        ### Original promptlib version ###
+        # output = openai_api.OpenaiAPIWrapper.call(
+        #     prompt=prompt,
+        #     engine=self.engine,
+        #     max_tokens=self.max_tokens,
+        #     stop_token="###",
+        #     temperature=0.7,
+        # )
+        # generated_feedback = openai_api.OpenaiAPIWrapper.get_first_response(output)
+
+        ### Langchain version ###
+        llm = OpenAI(model_name=self.engine, n=1, best_of=1, max_tokens=800, temperature=0.7, model_kwargs={"stop": "###"})
+        # generated_response = llm(generation_query)
+        llm_result = llm.generate([prompt])
+        total_tokens = llm_result.llm_output['token_usage']['total_tokens']
+        generated_feedback = llm_result.generations[0][0].text
+
+
         generated_feedback = generated_feedback.split("Scores:")[1].strip()
         generated_feedback = generated_feedback.split("#")[0].strip()
 
-        return output, generated_feedback
+        return total_tokens, generated_feedback
 
     def get_prompt_with_question(self, context: str, response: str):
         context = context.replace('System: ', '').replace('User: ', '')
@@ -94,3 +106,8 @@ Here are some examples of this scoring rubric:
 
 Response: {response}"""
         return question
+
+
+if __name__ == "__main__":
+    obj = ResponseGenFeedback(engine="whatever", prompt_examples="data/prompt/responsegen/feedback.jsonl")
+    print(obj.prompt)

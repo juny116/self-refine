@@ -1,9 +1,16 @@
 import pandas as pd
 from src.utils import Prompt
 from typing import List, Optional, Union
-import sys
 from prompt_lib.backends import openai_api
-
+from langchain.chat_models import ChatOpenAI
+from langchain.llms import OpenAI
+from langchain import PromptTemplate, LLMChain
+from langchain.prompts.chat import (
+    ChatPromptTemplate,
+    SystemMessagePromptTemplate,
+    AIMessagePromptTemplate,
+    HumanMessagePromptTemplate,
+)
 
 class ResponseGenTaskInit(Prompt):
     def __init__(self, prompt_examples: str, engine: str, numexamples=3) -> None:
@@ -49,17 +56,39 @@ Response: {response}"""
 
     def __call__(self, context: str) -> str:
         generation_query = self.make_query(context)
-        output = openai_api.OpenaiAPIWrapper.call(
-            prompt=generation_query,
-            engine=self.engine,
-            max_tokens=800,
-            stop_token="###",
-            temperature=0.7,
-        )
 
-        generated_response = openai_api.OpenaiAPIWrapper.get_first_response(output)
+        ### Original promptlib ###
+        # output = openai_api.OpenaiAPIWrapper.call(
+        #     prompt=generation_query,
+        #     engine=self.engine,
+        #     max_tokens=800,
+        #     stop_token="###",
+        #     temperature=0,
+        # )
+        # generated_response = openai_api.OpenaiAPIWrapper.get_first_response(output)
+
+        ### Langchain completion ###
+        llm = OpenAI(model_name=self.engine, n=1, best_of=1, max_tokens=800, temperature=0.7, model_kwargs={"stop": "###"})
+        # generated_response = llm(generation_query)
+        llm_result = llm.generate([generation_query])
+        total_tokens = llm_result.llm_output['token_usage']['total_tokens']
+        generated_response = llm_result.generations[0][0].text
+
+        ### Langchain chat ###
+        # chat = ChatOpenAI(temperature=0, max_tokens=800, model_name="gpt-4", model_kwargs={"stop": "###"})
+        # template="You are ChatGPT, a large language model trained by OpenAI."
+        # system_message_prompt = SystemMessagePromptTemplate.from_template(template)
+        # human_template="{text}"
+        # human_message_prompt = HumanMessagePromptTemplate.from_template(human_template)
+        # chat_prompt = ChatPromptTemplate.from_messages([system_message_prompt, human_message_prompt])
+        # chain = LLMChain(llm=chat, prompt=chat_prompt)
+        # generated_response = chain.run(generation_query)
 
         generated_response = generated_response.split(self.answer_prefix)[1].replace("#", "").strip()
 
+        return total_tokens, generated_response.strip()
 
-        return output, generated_response.strip()
+
+if __name__ == "__main__":
+    task_init = ResponseGenTaskInit(engine="whatever", prompt_examples="data/prompt/responsegen/init.jsonl")
+    print(task_init.prompt)
